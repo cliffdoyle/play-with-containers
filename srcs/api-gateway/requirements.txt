@@ -2,3 +2,4 @@ flask
 requests
 pika
 python-dotenv
+flask-swagger-ui

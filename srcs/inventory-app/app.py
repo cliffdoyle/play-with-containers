@@ -71,4 +71,4 @@ def delete_all_movies():
 if __name__ == '__main__':
     # Host='0.0.0.0' is CRITICAL. It tells Flask to listen on ALL network interfaces.
     # If you use 'localhost', the VM will hear it, but your Laptop won't.
-    app.run(host='0.0.0.0', port=5000)
+    app.run(host='0.0.0.0', port=8080)

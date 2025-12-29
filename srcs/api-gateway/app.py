@@ -93,7 +93,7 @@ def billing_ingest():
 
 if __name__ == '__main__':
     # CRITICAL: We run on port 8080 because Vagrant forwards host:8080 -> guest:8080
-    app.run(host='0.0.0.0', port=8080)
+    app.run(host='0.0.0.0', port=3000)
 
 
 SWAGGER_URL = '/docs'

@@ -35,8 +35,20 @@ engine = create_engine(DB_URI)
 Session = sessionmaker(bind=engine)
 
 def init_db():
-    Base.metadata.create_all(engine)
-    print(" [x] Database initialized (Tables created)")
+    retries = 5
+    while retries > 0:
+        try:
+            Base.metadata.create_all(engine)
+            print(" [x] Database initialized (Tables created)")
+            return True
+        except Exception as e:
+            print(f" [!] Database not ready yet: {e}")
+            print(" ... Retrying DB connection in 5s ...")
+            time.sleep(5)
+            retries -= 1
+    print(" [!] Could not connect to DB after multiple retries.")
+    return False
+
 
 # 4. The Logic (What happens when a message arrives?)
 def process_message(ch, method, properties, body):
@@ -72,7 +84,12 @@ def start_consuming():
     # Retry logic (in case RabbitMQ is still starting up)
     while True:
         try:
-            connection = pika.BlockingConnection(pika.ConnectionParameters(host=RABBIT_HOST))
+            RABBIT_USER = os.environ.get('RABBIT_USER', 'myuser')
+            RABBIT_PASS = os.environ.get('RABBIT_PASS', 'mypassword')
+
+            credentials = pika.PlainCredentials(RABBIT_USER, RABBIT_PASS)
+            
+            connection = pika.BlockingConnection(pika.ConnectionParameters(host=RABBIT_HOST,credentials=credentials))
             break
         except pika.exceptions.AMQPConnectionError:
             print(" ... RabbitMQ not ready, retrying in 5s ...")

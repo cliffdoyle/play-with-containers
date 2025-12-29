@@ -1,0 +1,114 @@
+version: '3.8'
+
+services:
+  # ----------------------------
+  # 1. INVENTORY SYSTEM
+  # ----------------------------
+  inventory-db:
+    image: postgres:14-bullseye   # Official Postgres based on Debian Bullseye
+    container_name: inventory-db
+    restart: always
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: movies_db
+    volumes:
+      - inventory-data:/var/lib/postgresql/data
+    networks:
+      - app_network
+    # We do NOT define 'ports' here, so it is NOT accessible from host.
+    # Only internal containers can reach it on port 5432.
+
+  inventory-app:
+    build: ./srcs/inventory-app
+    image: inventory-app          # Naming the image as requested
+    container_name: inventory-app
+    restart: always
+    depends_on:
+      - inventory-db
+    environment:
+      POSTGRES_HOST: inventory-db # Docker DNS resolves this name to the IP
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: movies_db
+    networks:
+      - app_network
+
+  # ----------------------------
+  # 2. BILLING SYSTEM
+  # ----------------------------
+  billing-db:
+    image: postgres:14-bullseye
+    container_name: billing-db
+    restart: always
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: billing_db
+    volumes:
+      - billing-data:/var/lib/postgresql/data
+    networks:
+      - app_network
+
+  rabbit-queue:
+    image: rabbitmq:3.9-management-alpine # Alpine allowed for pre-built
+    container_name: rabbit-queue
+    restart: always
+    environment:
+      RABBITMQ_DEFAULT_USER: ${POSTGRES_USER}
+      RABBITMQ_DEFAULT_PASS: ${POSTGRES_PASSWORD}
+    networks:
+      - app_network
+
+  billing-app:
+    build: ./srcs/billing-app
+    image: billing-app
+    container_name: billing-app
+    restart: always
+    depends_on:
+      - billing-db
+      - rabbit-queue
+    environment:
+      POSTGRES_HOST: billing-db
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: billing_db
+      RABBIT_HOST: rabbit-queue   # Resolves to the container IP
+      RABBIT_USER: ${POSTGRES_USER}      # ADD THIS
+      RABBIT_PASS: ${POSTGRES_PASSWORD}  # ADD THIS
+    networks:
+      - app_network
+
+  # ----------------------------
+  # 3. API GATEWAY
+  # ----------------------------
+  api-gateway-app:
+    build: ./srcs/api-gateway
+    image: api-gateway-app
+    container_name: api-gateway-app
+    restart: always
+    depends_on:
+      - inventory-app
+      - billing-app
+    environment:
+      INVENTORY_URL: http://inventory-app:8080/api/movies # Internal DNS name
+      RABBIT_HOST: rabbit-queue
+      RABBIT_USER: ${POSTGRES_USER}
+      RABBIT_PASS: ${POSTGRES_PASSWORD}
+    ports:
+      - "3000:3000"  # This is the ONLY port exposed to your laptop
+    volumes:
+      - gateway-logs:/app/logs
+    networks:
+      - app_network
+
+# Define the network
+networks:
+  app_network:
+    driver: bridge
+
+# Define persistence volumes
+volumes:
+  inventory-data:
+  billing-data:
+  gateway-logs:
